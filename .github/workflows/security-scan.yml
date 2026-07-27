@@ -64,3 +64,16 @@ jobs:
           format: table
           severity: CRITICAL          # bramka reaguje tylko na luki krytyczne
           exit-code: 1                 # kod 1 => potok konczy sie niepowodzeniem
+
+      # Krok 7: podsumowanie wynikow widoczne na stronie przebiegu potoku.
+      # 'if: always()' - wykonaj zawsze, takze gdy bramka przerwie potok.
+      - name: Podsumowanie wynikow skanowania
+        if: always()
+        run: |
+          echo "## Raport skanowania bezpieczenstwa obrazu" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Obraz:** app-niebezpieczny" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Status potoku:** ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Szczegolowa liste wykrytych podatnosci opublikowano w zakladce **Security -> Code scanning**." >> "$GITHUB_STEP_SUMMARY"
