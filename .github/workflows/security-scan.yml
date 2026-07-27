@@ -18,11 +18,19 @@ jobs:
       - name: Pobranie kodu zrodlowego
         uses: actions/checkout@v4
 
-      # Krok 2: zbudowanie obrazu Docker (wariant niebezpieczny)
+      # Krok 2: statyczna analiza pliku Dockerfile (Hadolint) - podejscie shift-left.
+      # Analiza wykonywana JESZCZE PRZED budowa obrazu.
+      - name: Analiza statyczna Dockerfile (Hadolint)
+        uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: Dockerfile
+          no-fail: true           # na razie tylko raportuj, nie blokuj (blokada w 6.3)
+
+      # Krok 3: zbudowanie obrazu Docker (wariant niebezpieczny)
       - name: Budowa obrazu Docker
         run: docker build -t app-niebezpieczny:${{ github.sha }} -f Dockerfile .
 
-      # Krok 3: skanowanie obrazu narzedziem Trivy
+      # Krok 4: skanowanie obrazu narzedziem Trivy
       - name: Skanowanie obrazu (Trivy)
         uses: aquasecurity/trivy-action@0.35.0
         with:
