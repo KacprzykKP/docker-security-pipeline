@@ -24,7 +24,7 @@ jobs:
 
       # Krok 3: skanowanie obrazu narzedziem Trivy
       - name: Skanowanie obrazu (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: app-niebezpieczny:${{ github.sha }}
           scanners: vuln          # skanuj podatnosci CVE
