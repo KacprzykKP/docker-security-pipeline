@@ -1,4 +1,4 @@
-# Potok CI/CD - automatyczne budowanie i skanowanie obrazu Docker.
+# Potok CI/CD - automatyczne budowanie, skanowanie i BLOKOWANIE obrazu Docker.
 # Plik jest automatycznie wykrywany i uruchamiany przez GitHub Actions.
 name: Skanowanie bezpieczenstwa obrazu Docker
 
@@ -7,6 +7,11 @@ on:
   push:
     branches: [ main ]        # przy kazdym wyslaniu kodu na galaz main
   workflow_dispatch:          # oraz recznie, przyciskiem w interfejsie GitHub
+
+# Uprawnienia potrzebne do publikacji raportu SARIF w zakladce Security.
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   build-and-scan:
@@ -19,22 +24,43 @@ jobs:
         uses: actions/checkout@v4
 
       # Krok 2: statyczna analiza pliku Dockerfile (Hadolint) - podejscie shift-left.
-      # Analiza wykonywana JESZCZE PRZED budowa obrazu.
       - name: Analiza statyczna Dockerfile (Hadolint)
         uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: Dockerfile
-          no-fail: true           # na razie tylko raportuj, nie blokuj (blokada w 6.3)
+          no-fail: true
 
       # Krok 3: zbudowanie obrazu Docker (wariant niebezpieczny)
       - name: Budowa obrazu Docker
         run: docker build -t app-niebezpieczny:${{ github.sha }} -f Dockerfile .
 
-      # Krok 4: skanowanie obrazu narzedziem Trivy
-      - name: Skanowanie obrazu (Trivy)
+      # Krok 4: skanowanie i wygenerowanie raportu w formacie SARIF.
+      # Ten krok NIE przerywa potoku - sluzy jedynie do raportowania.
+      - name: Skanowanie obrazu - raport SARIF (Trivy)
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: app-niebezpieczny:${{ github.sha }}
-          scanners: vuln          # skanuj podatnosci CVE
-          format: table           # wynik w postaci czytelnej tabeli
+          scanners: vuln
+          format: sarif
+          output: trivy-results.sarif
           severity: CRITICAL,HIGH,MEDIUM,LOW
+
+      # Krok 5: publikacja raportu SARIF w zakladce Security repozytorium.
+      # 'if: always()' - wykonaj nawet jesli dalej potok zostanie przerwany.
+      - name: Publikacja raportu SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      # Krok 6: BRAMKA BEZPIECZENSTWA.
+      # Jesli Trivy wykryje podatnosc o poziomie CRITICAL, kod wyjscia = 1,
+      # co powoduje NIEPOWODZENIE potoku i zablokowanie dalszych krokow (wdrozenia).
+      - name: Bramka bezpieczenstwa (Trivy)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: app-niebezpieczny:${{ github.sha }}
+          scanners: vuln
+          format: table
+          severity: CRITICAL          # bramka reaguje tylko na luki krytyczne
+          exit-code: 1                 # kod 1 => potok konczy sie niepowodzeniem
