@@ -1,0 +1,59 @@
+# Workflow publikujacy ZWERYFIKOWANY obraz do rejestru GitHub Container Registry.
+# Buduje obraz w wariancie utwardzonym, poddaje go bramce bezpieczenstwa
+# i - dopiero po pomyslnej weryfikacji - taguje oraz publikuje go w ghcr.io.
+name: Publikacja zweryfikowanego obrazu
+
+on:
+  workflow_dispatch:          # uruchamiane recznie (przyciskiem w interfejsie GitHub)
+
+permissions:
+  contents: read
+  packages: write             # uprawnienie wymagane do publikacji obrazu w ghcr.io
+
+jobs:
+  build-scan-publish:
+    name: Budowa, weryfikacja i publikacja
+    runs-on: ubuntu-latest
+
+    steps:
+      # Krok 1: pobranie kodu
+      - name: Pobranie kodu zrodlowego
+        uses: actions/checkout@v4
+
+      # Krok 2: budowa obrazu w wariancie UTWARDZONYM
+      - name: Budowa obrazu (wariant utwardzony)
+        run: docker build -t app-bezpieczny:${{ github.sha }} -f Dockerfile.secure .
+
+      # Krok 3: BRAMKA BEZPIECZENSTWA.
+      # 'ignore-unfixed: true' - reaguj tylko na luki krytyczne, ktore MAJA dostepna
+      # poprawke (luk nienaprawialnych w obrazie bazowym nie da sie usunac).
+      - name: Bramka bezpieczenstwa (Trivy)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: app-bezpieczny:${{ github.sha }}
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+      # Krok 4: logowanie do rejestru ghcr.io (przy uzyciu tokenu GITHUB_TOKEN)
+      - name: Logowanie do GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Krok 5: tagowanie i publikacja zweryfikowanego obrazu.
+      # Ten krok wykona sie WYLACZNIE, jesli bramka (krok 3) zakonczy sie sukcesem.
+      - name: Tagowanie i publikacja obrazu
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/$OWNER/app-bezpieczny"
+          docker tag app-bezpieczny:${{ github.sha }} "$IMAGE:latest"
+          docker tag app-bezpieczny:${{ github.sha }} "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.sha }}"
+          echo "## Publikacja obrazu" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Obraz zweryfikowany i opublikowany: \`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tagi: \`latest\`, \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
