@@ -1,0 +1,43 @@
+# =====================================================================
+#  WARIANT UTWARDZONY (zgodny z dobrymi praktykami - rozdzial 8.2)
+# =====================================================================
+#  Realizuje zalecenia bezpieczenstwa: aktualny minimalny obraz bazowy,
+#  budowa wieloetapowa (multi-stage), uzytkownik nie-root, COPY zamiast
+#  ADD, HEALTHCHECK oraz przypiete wersje zaleznosci.
+# ---------------------------------------------------------------------
+
+# --- Etap 1: budowa zaleznosci -------------------------------------
+FROM python:3.12-slim-bookworm AS builder
+
+WORKDIR /app
+
+COPY app/requirements.secure.txt ./requirements.txt
+
+# Instalacja do dedykowanego katalogu, ktory skopiujemy do finalnego obrazu.
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# --- Etap 2: minimalny obraz finalny -------------------------------
+FROM python:3.12-slim-bookworm
+
+# Utworzenie uzytkownika o ograniczonych uprawnieniach (id 1001).
+RUN groupadd --gid 1001 appuser \
+    && useradd --uid 1001 --gid 1001 --create-home appuser
+
+WORKDIR /app
+
+# Skopiowanie tylko zainstalowanych bibliotek z etapu budowania.
+COPY --from=builder /install /usr/local
+
+# COPY (nie ADD) - kopiowanie kodu aplikacji.
+COPY app/ /app/
+
+# Przelaczenie na uzytkownika nie-root.
+USER 1001
+
+EXPOSE 5000
+
+# Test dostepnosci kontenera na poziomie Dockera.
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
+
+CMD ["python", "app.py"]

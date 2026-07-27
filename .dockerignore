@@ -1,0 +1,11 @@
+.git
+.github
+reports
+scripts
+k8s
+docs
+**/__pycache__
+*.pyc
+.venv
+venv
+README.md

@@ -1,0 +1,13 @@
+# UWAGA: Wersje celowo przestarzale (stan badawczy).
+# Kazda z ponizszych bibliotek zawiera znane podatnosci CVE, co pozwala
+# zademonstrowac wykrywanie luk na poziomie zaleznosci aplikacyjnych.
+# W wariancie utwardzonym (requirements.secure.txt) sa one zaktualizowane.
+Flask==1.1.2
+Werkzeug==1.0.1
+Jinja2==2.11.3
+itsdangerous==1.1.0
+MarkupSafe==1.1.1
+click==7.1.2
+requests==2.25.1
+urllib3==1.26.5
+PyYAML==5.3.1

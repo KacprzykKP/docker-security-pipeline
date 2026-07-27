@@ -1,0 +1,16 @@
+# Pliki tymczasowe i generowane - nie wysylamy ich do repozytorium
+reports/*.json
+reports/*.sarif
+reports/*.csv
+*.log
+
+# Srodowiska wirtualne Pythona
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Pliki systemowe / edytora
+.DS_Store
+Thumbs.db
+.vscode/
