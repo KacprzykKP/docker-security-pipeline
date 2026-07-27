@@ -1,0 +1,54 @@
+# Workflow CYKLICZNEGO skanowania obrazu przechowywanego w rejestrze.
+# Realizuje okresowa weryfikacje juz opublikowanego obrazu pod katem
+# nowo ujawnionych podatnosci (CVE), niezaleznie od zmian w kodzie.
+name: Cykliczne skanowanie obrazu w rejestrze
+
+on:
+  # Harmonogram: w kazdy poniedzialek o godzinie 3:00 (czas UTC).
+  schedule:
+    - cron: '0 3 * * 1'
+  # Umozliwia rowniez reczne uruchomienie (przyciskiem w interfejsie).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read              # uprawnienie do pobrania obrazu z rejestru ghcr.io
+
+jobs:
+  scheduled-scan:
+    name: Skanowanie obrazu z rejestru
+    runs-on: ubuntu-latest
+
+    steps:
+      # Krok 1: ustalenie pelnej nazwy obrazu w rejestrze (male litery wymagane przez ghcr.io).
+      - name: Ustalenie nazwy obrazu
+        id: img
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/$OWNER/app-bezpieczny:latest" >> "$GITHUB_OUTPUT"
+
+      # Krok 2: logowanie do rejestru (umozliwia pobranie obrazu).
+      - name: Logowanie do GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Krok 3: ponowne skanowanie obrazu POBRANEGO Z REJESTRU (nie budowanego lokalnie).
+      - name: Skanowanie obrazu z rejestru (Trivy)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ steps.img.outputs.image }}
+          scanners: vuln
+          format: table
+          severity: CRITICAL,HIGH
+
+      # Krok 4: podsumowanie wyniku skanowania cyklicznego.
+      - name: Podsumowanie skanowania cyklicznego
+        if: always()
+        run: |
+          echo "## Cykliczne skanowanie obrazu z rejestru" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Obraz:** ${{ steps.img.outputs.image }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Status:** ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
